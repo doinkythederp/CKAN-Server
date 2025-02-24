@@ -1,0 +1,103 @@
+syntax = "proto3";
+
+option csharp_namespace = "CKANServer";
+
+import "google/protobuf/wrappers.proto";
+
+package ckan;
+
+service CKANServer {
+    // Get the version of CKAN
+    rpc GetVersion (GetVersionRequest) returns (GetVersionReply);
+    // Performs a single action on the server.
+    // If the server needs more information to complete the action, the client
+    // must follow up with additional `ContinueRequest` messages.
+    rpc ProcessAction (stream ActionMessage) returns (stream ActionReply);
+}
+
+message GetVersionRequest {}
+
+message GetVersionReply {
+    // The version of CKAN in SemVer format
+    string version = 1;
+    // The product name of the software (e.g. "CKAN")
+    string product_name = 2;
+}
+
+message ActionMessage {
+    oneof request {
+        ContinueRequest continue_request = 1;
+        InstancesListRequest instances_list_request = 2;
+    }
+}
+
+message ContinueRequest {
+    oneof value {
+        // Response to a yes/no prompt
+        bool yes_or_no = 1;
+        // Response to a selection prompt
+        uint32 index = 2;
+    }
+}
+
+message ActionReply {
+    message Prompt {
+        // The prompt to display to the user
+        string message = 1;
+        // The default option to select, if any
+        optional uint32 default_index = 2;
+        // A list of options for the user to select.
+        // If empty, the user must answer yes or no to the prompt.
+        repeated string options = 3;
+    }
+
+    message Progress {
+        // The message associated with the progress
+        optional string message = 1;
+        // The percentage of completion, from 0 to 100
+        uint32 value = 3;
+    }
+    
+    oneof status {
+        // A message to display to the user
+        string message = 1;
+        // An error message to display to the user
+        string errorMessage = 2;
+        // An update on the progress of the transaction
+        Progress progress = 3;
+        // A prompt for the user to respond to
+        Prompt prompt = 4;
+
+        // The request failed.
+        FailureMessage failure = 5;
+        // The reply to a list request
+        InstancesListReply instances_list_reply = 6;
+    }
+}
+
+message FailureMessage {
+    string message = 1;
+}
+
+message Game {
+    string id = 1;
+    
+    message Version {
+        google.protobuf.Int32Value major = 1;
+        google.protobuf.Int32Value minor = 2;
+        google.protobuf.Int32Value patch = 3;
+        google.protobuf.Int32Value build = 4;
+    }
+}
+
+message Instance {
+    string directory = 1;
+    string gameId = 2;
+    string name = 3;
+    Game.Version gameVersion = 4;
+}
+
+message InstancesListRequest {}
+message InstancesListReply {
+    repeated Instance instances = 1;
+}
