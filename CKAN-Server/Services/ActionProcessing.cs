@@ -1,0 +1,129 @@
+using System.Collections.Concurrent;
+using System.Threading.Channels;
+using CKAN;
+using CKAN.Configuration;
+using CKAN.Versioning;
+using CKANServer.Services.Action;
+using Grpc.Core;
+using log4net;
+using IConfiguration = Microsoft.Extensions.Configuration.IConfiguration;
+
+namespace CKANServer.Services;
+
+public interface ICkanManager
+{
+    public Task RunAction(ClientHandle handle, CancellationToken token);
+}
+
+public readonly struct ClientHandle
+{
+    public required IAsyncStreamReader<ActionMessage> Reader { get; init; }
+    public required IAsyncStreamWriter<ActionReply> Writer { get; init; }
+}
+
+public class CkanManager : ICkanManager
+{
+    private readonly ChannelWriter<CkanAction.ActionContext> _writer;
+
+    public CkanManager(ILogger<CkanManager> logger)
+    {
+        var channel = Channel.CreateUnbounded<CkanAction.ActionContext>();
+        _writer = channel.Writer;
+        var processor = new ActionProcessor(channel.Reader, logger);
+        Task.Run(() => processor.RunAsync());
+    }
+    
+    public async Task RunAction(ClientHandle handle, CancellationToken token)
+    {
+        var messageChannel = Channel.CreateUnbounded<ActionMessage>();
+        var replyChannel = Channel.CreateUnbounded<ActionReply>();
+        var completionSource = new TaskCompletionSource();
+        var actionCtx = new CkanAction.ActionContext
+        {
+            Client = handle,
+            CancellationToken = token,
+            CompletionSource = completionSource,
+        };
+        await _writer.WriteAsync(actionCtx, token);
+        await completionSource.Task;
+    }
+
+    private class ActionProcessor(ChannelReader<CkanAction.ActionContext> reader, ILogger logger)
+    {
+        private readonly GameInstanceManager _instanceManager = new(new NullUser());
+
+        public async Task RunAsync()
+        {
+            await foreach (var actionCtx in reader.ReadAllAsync())
+            {
+                var action = new CkanAction(logger)
+                {
+                    Context = actionCtx,
+                    InstanceManager = _instanceManager,
+                    User = new NullUser(),
+                };
+                
+                try
+                {
+                    await ProcessOne(action);
+                }
+                catch (OperationCanceledException)
+                {
+                    logger.LogDebug("Client disconnected before finishing request");
+                }
+            }
+        }
+
+        private async Task ProcessOne(CkanAction action)
+        {
+            var request = await action.ReadMessageAsync();
+            if (request == null) return;
+            
+            try
+            {
+                switch (request.RequestCase)
+                {
+                    case ActionMessage.RequestOneofCase.InstancesListRequest:
+                        await action.ListInstances();
+                        break;
+                    case ActionMessage.RequestOneofCase.InstanceAddRequest:
+                        await action.AddInstance(request.InstanceAddRequest);
+                        break;
+                    case ActionMessage.RequestOneofCase.InstanceForgetRequest:
+                        await action.ForgetInstance(request.InstanceForgetRequest);
+                        break;
+                    case ActionMessage.RequestOneofCase.ContinueRequest:
+                        await action.FailAsync("A continuation request cannot be the first message sent");
+                        break;
+                    case ActionMessage.RequestOneofCase.None:
+                    default:
+                        await action.FailAsync("Unknown message type");
+                        break;
+                }
+            }
+            catch (Kraken err)
+            {
+                logger.LogError("{Error}", err);
+                await action.FailAsync(err.ToString());
+            }
+            
+            action.Context.CompletionSource.SetResult();
+        }
+    }
+}
+
+public class InvalidMessageKraken(string expected, string actual)
+    : Kraken($"Expected a {expected} message, got a {actual} message");
+
+public static class GameVersionExtension
+{
+    public static Game.Types.Version ToProto(this GameVersion version)
+    {
+        var buf = new Game.Types.Version();
+        if (version.IsMajorDefined) buf.Major = version.Major;
+        if (version.IsMinorDefined) buf.Minor = version.Minor;
+        if (version.IsPatchDefined) buf.Patch = version.Patch;
+        if (version.IsBuildDefined) buf.Build = version.Build;
+        return buf;
+    }
+}

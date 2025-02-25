@@ -5,12 +5,12 @@ option csharp_namespace = "CKANServer";
 package ckan;
 
 service CKANServer {
-    // Get the version of CKAN
-    rpc GetVersion (GetVersionRequest) returns (GetVersionReply);
     // Performs a single action on the server.
     // If the server needs more information to complete the action, the client
     // must follow up with additional `ContinueRequest` messages.
     rpc ProcessAction (stream ActionMessage) returns (stream ActionReply);
+    // Get the version of CKAN
+    rpc GetVersion (GetVersionRequest) returns (GetVersionReply);
 }
 
 message GetVersionRequest {}
@@ -26,6 +26,11 @@ message ActionMessage {
     oneof request {
         ContinueRequest continue_request = 1;
         InstancesListRequest instances_list_request = 2;
+        InstanceAddRequest instance_add_request = 3;
+        InstanceCloneRequest instance_clone_request = 4;
+        InstanceRenameRequest instance_rename_request = 5;
+        InstanceForgetRequest instance_forget_request = 6;
+        InstanceFakeRequest instance_fake_request = 7;
     }
 }
 
@@ -70,6 +75,7 @@ message ActionReply {
         FailureMessage failure = 5;
         // The reply to a list request
         InstancesListReply instances_list_reply = 6;
+        InstanceOperationReply instance_operation_reply = 7;
     }
 }
 
@@ -122,17 +128,19 @@ enum InstanceOperationResult {
     IOR_FAKER_FAILED = 10;
 }
 
+message InstanceOperationReply {
+    InstanceOperationResult result = 1;
+    optional string errorDetails = 2;
+}
+
 message InstancesListRequest {}
 message InstancesListReply {
     repeated Instance instances = 1;
 }
 
-message InstancesAddRequest {
+message InstanceAddRequest {
     string name = 1;
     string directory = 2;
-}
-message InstancesAddReply {
-    InstanceOperationResult result = 1;
 }
 
 message InstanceCloneRequest {
@@ -141,31 +149,18 @@ message InstanceCloneRequest {
     string newDirectory = 4;
     bool createSymlinksForStockDirs = 5;
 }
-message InstanceCloneReply {
-    InstanceOperationResult result = 1;
-    optional string errorDetails = 2;
-}
 
 message InstanceRenameRequest {
     string oldName = 1;
     string newName = 2;
 }
-message InstanceRenameReply {
-    InstanceOperationResult result = 1;
-}
 
 message InstanceForgetRequest {
     string name = 1;
 }
-message InstanceForgetReply {
-    InstanceOperationResult result = 1;
-}
 
 message InstanceSetDefaultRequest {
     string name = 1;
-}
-message InstanceSetDefaultReply {
-    InstanceOperationResult result = 1;
 }
 
 message InstanceFakeRequest {
@@ -176,8 +171,4 @@ message InstanceFakeRequest {
     optional Game.Version makingHistoryVersion = 5;
     optional Game.Version breakingGroundVersion = 6;
     bool useAsNewDefault = 7;
-}
-
-message InstanceFakeReply {
-    InstanceOperationResult result = 1;
 }
