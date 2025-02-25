@@ -2,8 +2,6 @@ syntax = "proto3";
 
 option csharp_namespace = "CKANServer";
 
-import "google/protobuf/wrappers.proto";
-
 package ckan;
 
 service CKANServer {
@@ -83,21 +81,103 @@ message Game {
     string id = 1;
     
     message Version {
-        google.protobuf.Int32Value major = 1;
-        google.protobuf.Int32Value minor = 2;
-        google.protobuf.Int32Value patch = 3;
-        google.protobuf.Int32Value build = 4;
+        optional int32 major = 1;
+        optional int32 minor = 2;
+        optional int32 patch = 3;
+        optional int32 build = 4;
     }
 }
+
+// # Instances 
 
 message Instance {
     string directory = 1;
     string gameId = 2;
+    // Guaranteed to be unique
     string name = 3;
     Game.Version gameVersion = 4;
+}
+
+enum InstanceOperationResult {
+    IOR_SUCCESS = 0;
+    // Some required data wasn't specified.
+    IOR_MISSING_DATA = 1;
+    // This instance name is already taken.
+    IOR_DUPLICATE_INSTANCE = 2;
+    // The directory specified is not a game instance.
+    IOR_NOT_AN_INSTANCE = 3;
+    // There is no instance with this name or at this path.
+    IOR_INSTANCE_NOT_FOUND = 4;
+    // Generic clone failure
+    IOR_CLONE_FAILED = 5;
+    // The clone target must not already exist.
+    IOR_CLONE_TARGET_EXISTS = 6;
+    // The game requested to be faked is not supported.
+    IOR_FAKER_UNKNOWN_GAME = 7;
+    // The version requested to be faked is not supported.
+    IOR_FAKER_UNKNOWN_VERSION = 8;
+    // The version requested to be faked is too old to support one of the requested DLCs.
+    IOR_FAKER_VERSION_TOO_OLD = 9;
+    // Generic game fake failure
+    IOR_FAKER_FAILED = 10;
 }
 
 message InstancesListRequest {}
 message InstancesListReply {
     repeated Instance instances = 1;
+}
+
+message InstancesAddRequest {
+    string name = 1;
+    string directory = 2;
+}
+message InstancesAddReply {
+    InstanceOperationResult result = 1;
+}
+
+message InstanceCloneRequest {
+    string name = 1;
+    string newName = 3;
+    string newDirectory = 4;
+    bool createSymlinksForStockDirs = 5;
+}
+message InstanceCloneReply {
+    InstanceOperationResult result = 1;
+    optional string errorDetails = 2;
+}
+
+message InstanceRenameRequest {
+    string oldName = 1;
+    string newName = 2;
+}
+message InstanceRenameReply {
+    InstanceOperationResult result = 1;
+}
+
+message InstanceForgetRequest {
+    string name = 1;
+}
+message InstanceForgetReply {
+    InstanceOperationResult result = 1;
+}
+
+message InstanceSetDefaultRequest {
+    string name = 1;
+}
+message InstanceSetDefaultReply {
+    InstanceOperationResult result = 1;
+}
+
+message InstanceFakeRequest {
+    string name = 1;
+    string directory = 2;
+    Game.Version version = 3;
+    string gameId = 4;
+    optional Game.Version makingHistoryVersion = 5;
+    optional Game.Version breakingGroundVersion = 6;
+    bool useAsNewDefault = 7;
+}
+
+message InstanceFakeReply {
+    InstanceOperationResult result = 1;
 }

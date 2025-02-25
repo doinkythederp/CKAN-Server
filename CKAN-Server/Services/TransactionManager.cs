@@ -180,12 +180,11 @@ public static class GameVersionExtension
 {
     public static Game.Types.Version ToProto(this GameVersion version)
     {
-        return new Game.Types.Version
-        {
-            Major = version.IsMajorDefined ? version.Major : null,
-            Minor = version.IsMinorDefined ? version.Minor : null,
-            Patch = version.IsPatchDefined ? version.Patch : null,
-            Build = version.IsBuildDefined ? version.Build : null,
-        };
+        var buf = new Game.Types.Version();
+        if (version.IsMajorDefined) buf.Major = version.Major;
+        if (version.IsMinorDefined) buf.Minor = version.Minor;
+        if (version.IsPatchDefined) buf.Patch = version.Patch;
+        if (version.IsBuildDefined) buf.Build = version.Build;
+        return buf;
     }
 }
