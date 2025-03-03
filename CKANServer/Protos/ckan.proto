@@ -31,6 +31,7 @@ message ActionMessage {
         InstanceRenameRequest instance_rename_request = 5;
         InstanceForgetRequest instance_forget_request = 6;
         InstanceFakeRequest instance_fake_request = 7;
+        InstanceSetDefaultRequest instance_set_default_request = 8;
     }
 }
 
@@ -101,7 +102,8 @@ message Instance {
     string gameId = 2;
     // Guaranteed to be unique
     string name = 3;
-    Game.Version gameVersion = 4;
+    Game.Version game_version = 4;
+    bool is_default = 5;
 }
 
 enum InstanceOperationResult {
@@ -112,12 +114,12 @@ enum InstanceOperationResult {
     IOR_DUPLICATE_INSTANCE = 2;
     // The directory specified is not a game instance.
     IOR_NOT_AN_INSTANCE = 3;
-    // There is no instance with this name or at this path.
+    // There is no instance with this name.
     IOR_INSTANCE_NOT_FOUND = 4;
     // Generic clone failure
     IOR_CLONE_FAILED = 5;
-    // The clone target must not already exist.
-    IOR_CLONE_TARGET_EXISTS = 6;
+    // The install location must not already exist.
+    IOR_NEW_INSTANCE_DIR_EXISTS = 6;
     // The game requested to be faked is not supported.
     IOR_FAKER_UNKNOWN_GAME = 7;
     // The version requested to be faked is not supported.
@@ -130,7 +132,7 @@ enum InstanceOperationResult {
 
 message InstanceOperationReply {
     InstanceOperationResult result = 1;
-    optional string errorDetails = 2;
+    optional string error_details = 2;
 }
 
 message InstancesListRequest {}
@@ -147,7 +149,7 @@ message InstanceCloneRequest {
     string name = 1;
     string newName = 3;
     string newDirectory = 4;
-    bool createSymlinksForStockDirs = 5;
+    bool create_symlinks_for_stock_dirs = 5;
 }
 
 message InstanceRenameRequest {
@@ -168,7 +170,7 @@ message InstanceFakeRequest {
     string directory = 2;
     Game.Version version = 3;
     string gameId = 4;
-    optional Game.Version makingHistoryVersion = 5;
-    optional Game.Version breakingGroundVersion = 6;
-    bool useAsNewDefault = 7;
+    optional Game.Version making_history_version = 5;
+    optional Game.Version breaking_ground_version = 6;
+    bool use_as_new_default = 7;
 }

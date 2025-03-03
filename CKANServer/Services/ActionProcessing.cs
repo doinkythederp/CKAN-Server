@@ -81,8 +81,11 @@ public class CkanManager : ICkanManager
             
             try
             {
+                action.SetupInstances();
+                
                 switch (request.RequestCase)
                 {
+                    // # Game Instance Requests
                     case ActionMessage.RequestOneofCase.InstancesListRequest:
                         await action.ListInstances();
                         break;
@@ -92,6 +95,19 @@ public class CkanManager : ICkanManager
                     case ActionMessage.RequestOneofCase.InstanceForgetRequest:
                         await action.ForgetInstance(request.InstanceForgetRequest);
                         break;
+                    case ActionMessage.RequestOneofCase.InstanceRenameRequest:
+                        await action.RenameInstance(request.InstanceRenameRequest);
+                        break;
+                    case ActionMessage.RequestOneofCase.InstanceSetDefaultRequest:
+                        await action.SetDefaultInstance(request.InstanceSetDefaultRequest);
+                        break;
+                    case ActionMessage.RequestOneofCase.InstanceFakeRequest:
+                        await action.FakeNewInstance(request.InstanceFakeRequest);
+                        break;
+                    case ActionMessage.RequestOneofCase.InstanceCloneRequest:
+                        await action.CloneInstance(request.InstanceCloneRequest);
+                        break;
+                        
                     case ActionMessage.RequestOneofCase.ContinueRequest:
                         await action.FailAsync("A continuation request cannot be the first message sent");
                         break;
@@ -101,9 +117,9 @@ public class CkanManager : ICkanManager
                         break;
                 }
             }
-            catch (Kraken err)
+            catch (Exception err)
             {
-                logger.LogError("{Error}", err);
+                logger.LogError("ERROR! {Error}", err);
                 await action.FailAsync(err.ToString());
             }
             
@@ -114,16 +130,3 @@ public class CkanManager : ICkanManager
 
 public class InvalidMessageKraken(string expected, string actual)
     : Kraken($"Expected a {expected} message, got a {actual} message");
-
-public static class GameVersionExtension
-{
-    public static Game.Types.Version ToProto(this GameVersion version)
-    {
-        var buf = new Game.Types.Version();
-        if (version.IsMajorDefined) buf.Major = version.Major;
-        if (version.IsMinorDefined) buf.Minor = version.Minor;
-        if (version.IsPatchDefined) buf.Patch = version.Patch;
-        if (version.IsBuildDefined) buf.Build = version.Build;
-        return buf;
-    }
-}
