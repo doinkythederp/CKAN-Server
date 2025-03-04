@@ -18,25 +18,17 @@ public static class GameVersionExtension
     {
         // Although invalid fields are stored internally as `-1`, passing in that value gives an exception.
         // Thus, we need to use the several different constructors of various lengths to avoid this.
-        if (buf is { HasMajor: true, HasMinor: true, HasPatch: true, HasBuild: true })
+        return buf switch
         {
-            return new GameVersion(buf.Major, buf.Minor, buf.Patch, buf.Build);
-        }
-        else if (buf is { HasMajor: true, HasMinor: true, HasPatch: true })
-        {
-            return new GameVersion(buf.Major, buf.Minor, buf.Patch);
-        }
-        else if (buf is { HasMajor: true, HasMinor: true })
-        {
-            return new GameVersion(buf.Major, buf.Minor);
-        }
-        else if (buf is { HasMajor: true })
-        {
-            return new GameVersion(buf.Major);
-        }
-        else
-        {
-            return new GameVersion();
-        }
+            { HasMajor: true, HasMinor: true, HasPatch: true, HasBuild: true } =>
+                new GameVersion(buf.Major, buf.Minor, buf.Patch, buf.Build),
+            { HasMajor: true, HasMinor: true, HasPatch: true } =>
+                new GameVersion(buf.Major, buf.Minor, buf.Patch),
+            { HasMajor: true, HasMinor: true } =>
+                new GameVersion(buf.Major, buf.Minor),
+            { HasMajor: true } =>
+                new GameVersion(buf.Major),
+            _ => new GameVersion(),
+        };
     }
 }
