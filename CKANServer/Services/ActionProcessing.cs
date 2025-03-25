@@ -51,6 +51,7 @@ public class CkanManager : ICkanManager
     private class ActionProcessor(ChannelReader<CkanAction.ActionContext> reader, ILogger logger)
     {
         private readonly GameInstanceManager _instanceManager = new(new NullUser());
+        private readonly RepositoryDataManager _repoMgr = new();
 
         public async Task RunAsync()
         {
@@ -60,6 +61,7 @@ public class CkanManager : ICkanManager
                 {
                     Context = actionCtx,
                     InstanceManager = _instanceManager,
+                    RepoManager = _repoMgr,
                     User = new NullUser(),
                 };
                 
@@ -106,6 +108,13 @@ public class CkanManager : ICkanManager
                         break;
                     case ActionMessage.RequestOneofCase.InstanceCloneRequest:
                         await action.CloneInstance(request.InstanceCloneRequest);
+                        break;
+                    
+                    case ActionMessage.RequestOneofCase.RegistryPrepopulateRequest:
+                        await action.PrepopulateRegistry(request.RegistryPrepopulateRequest);
+                        break;
+                    case ActionMessage.RequestOneofCase.RegistryCompatibleModulesRequest:
+                        await action.CompatibleModules(request.RegistryCompatibleModulesRequest);
                         break;
                         
                     case ActionMessage.RequestOneofCase.ContinueRequest:

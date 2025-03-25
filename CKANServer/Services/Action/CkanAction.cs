@@ -14,6 +14,7 @@ public partial class CkanAction(ILogger logger)
     
     public required ActionContext Context { get; init; }
     public required GameInstanceManager InstanceManager { get; init; }
+    public required RepositoryDataManager RepoManager { get; init; }
     public required IUser User { get; init; }
 
     public async Task<ActionMessage?> ReadMessageAsync()
@@ -37,6 +38,47 @@ public partial class CkanAction(ILogger logger)
             },
         };
         await WriteMessageAsync(reply);
+    }
+    
+    public IProgress<int> Progress => new ProgressImmediate<int>(value =>
+    {
+        logger.LogInformation("Progress: {Value}", value);
+        WriteProgress(value);
+    });
+
+    public void WriteProgress(int percent, string? message = null)
+    {
+        var progress = new ActionReply.Types.Progress
+        {
+            Value = (uint)percent,
+        };
+        if (message != null)
+        {
+            progress.Message = message;
+        }
+        
+        WriteMessageAsync(new ActionReply
+        {
+            Progress = progress
+        })
+            .GetAwaiter()
+            .GetResult();
+    }
+
+    public async Task<GameInstance?> InstanceFromName(string name)
+    {
+        if (InstanceManager.HasInstance(name))
+        {
+            return InstanceManager.Instances[name];
+        }
+        
+        await WriteInstanceOpReply(InstanceOperationResult.IorInstanceNotFound);
+        return null;
+    }
+
+    public RegistryManager RegistryManagerFor(GameInstance instance)
+    {
+        return RegistryManager.Instance(instance, RepoManager);
     }
 
     public ContinueRequest WaitForContinue(ActionReply reply)

@@ -25,6 +25,7 @@ message GetVersionReply {
 message ActionMessage {
     oneof request {
         ContinueRequest continue_request = 1;
+        
         InstancesListRequest instances_list_request = 2;
         InstanceAddRequest instance_add_request = 3;
         InstanceCloneRequest instance_clone_request = 4;
@@ -32,6 +33,9 @@ message ActionMessage {
         InstanceForgetRequest instance_forget_request = 6;
         InstanceFakeRequest instance_fake_request = 7;
         InstanceSetDefaultRequest instance_set_default_request = 8;
+        
+        RegistryPrepopulateRequest registry_prepopulate_request = 9;
+        RegistryCompatibleModulesRequest registry_compatible_modules_request = 10;
     }
 }
 
@@ -77,6 +81,7 @@ message ActionReply {
         // The reply to a list request
         InstancesListReply instances_list_reply = 6;
         InstanceOperationReply instance_operation_reply = 7;
+        RegistryOperationReply registry_operation_reply = 8;
     }
 }
 
@@ -173,4 +178,114 @@ message InstanceFakeRequest {
     optional Game.Version making_history_version = 5;
     optional Game.Version breaking_ground_version = 6;
     bool use_as_new_default = 7;
+}
+
+// # Registry
+
+message Module {
+    enum Kind {
+        MODULE_UNKNOWN = 0;
+        MODULE_PACKAGE = 1;
+        MODULE_METAPACKAGE = 2;
+        MODULE_DLC = 3;
+    }
+    
+    message Relationship {
+        message DirectRelationship {
+            // The identifier to match
+            string name = 1;
+            optional string max_version = 2;
+            optional string min_version = 3;
+            optional string version = 4;
+        }
+        message AnyOfRelationship {
+            repeated Relationship allowed_modules = 1;
+        }
+        
+        optional string choice_help_text = 1;
+        // If true, then don't show recommendations and suggestions of this module or its dependencies.
+        // Otherwise recommendations and suggestions of everything in changeset will be included.
+        // This is meant to allow the KSP-RO team to shorten the prompts that appear during their installation.
+        bool suppress_recommendations = 2;
+        oneof type {
+            DirectRelationship direct = 3;
+            AnyOfRelationship any_of = 4;
+        }
+    }
+    
+    enum ReleaseStatus {
+        MRS_UNKNOWN = 0;
+        MRS_STABLE = 1;
+        MRS_TESTING = 2;
+        MRS_DEVELOPMENT = 3;
+    }
+    
+    message Resources {
+        optional string homepage = 1;
+        optional string spacedock = 2;
+        optional string curse = 3;
+        optional string repository = 4;
+        optional string bugtracker = 5;
+        optional string discussions = 6;
+        optional string ci = 7;
+        optional string license = 8;
+        optional string manual = 9;
+        optional string metanetkan = 10;
+        optional string remote_avc = 11;
+        optional string remote_swinfo = 12;
+        optional string store = 13;
+        optional string steam_store = 14;
+    }
+    
+    string abstract = 1;
+    optional string description = 2;
+    optional Kind kind = 3;
+    repeated string authors = 4;
+    repeated Relationship conflicts = 6;
+    repeated Relationship depends = 7;
+    optional Relationship replaced_by = 8;
+    repeated string download_uris = 9;
+    uint64 download_size_bytes = 10;
+    uint64 install_size_bytes = 14;
+    string identifier = 15;
+    optional Game.Version ksp_version = 16;
+    optional Game.Version ksp_version_max = 17;
+    optional Game.Version ksp_version_min = 18;
+    bool ksp_version_strict = 19;
+    repeated string licenses = 20;
+    string name = 21;
+    repeated string provides = 22;
+    repeated Relationship recommends = 23;
+    ReleaseStatus release_status = 25;
+    Resources resources = 26;
+    repeated Relationship suggests = 27;
+    string version = 28;
+    repeated Relationship supports = 29;
+    repeated string localizations = 30;
+}
+
+enum RegistryOperationResult {
+    ROR_SUCCESS = 0;
+    ROR_REGISTRY_IN_USE = 1;
+}
+
+message RegistryOperationReply {
+    RegistryOperationResult result = 1;
+    optional string error_details = 2;
+    oneof results {
+        RegistryCompatibleModulesReply compatible_modules = 3;
+    }
+}
+
+message RegistryPrepopulateRequest {
+    string instance_name = 1;
+    bool force_lock = 2;
+}
+
+message RegistryCompatibleModulesRequest {
+    string instance_name = 1;
+}
+
+message RegistryCompatibleModulesReply {
+    repeated Module modules = 1;
 }
