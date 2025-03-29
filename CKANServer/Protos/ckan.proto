@@ -2,6 +2,8 @@ syntax = "proto3";
 
 option csharp_namespace = "CKANServer";
 
+import "google/protobuf/timestamp.proto";
+
 package ckan;
 
 service CKANServer {
@@ -25,7 +27,7 @@ message GetVersionReply {
 message ActionMessage {
     oneof request {
         ContinueRequest continue_request = 1;
-        
+
         InstancesListRequest instances_list_request = 2;
         InstanceAddRequest instance_add_request = 3;
         InstanceCloneRequest instance_clone_request = 4;
@@ -33,7 +35,7 @@ message ActionMessage {
         InstanceForgetRequest instance_forget_request = 6;
         InstanceFakeRequest instance_fake_request = 7;
         InstanceSetDefaultRequest instance_set_default_request = 8;
-        
+
         RegistryPrepopulateRequest registry_prepopulate_request = 9;
         RegistryCompatibleModulesRequest registry_compatible_modules_request = 10;
     }
@@ -65,7 +67,7 @@ message ActionReply {
         // The percentage of completion, from 0 to 100
         uint32 value = 3;
     }
-    
+
     oneof status {
         // A message to display to the user
         string message = 1;
@@ -91,7 +93,7 @@ message FailureMessage {
 
 message Game {
     string id = 1;
-    
+
     message Version {
         optional int32 major = 1;
         optional int32 minor = 2;
@@ -100,7 +102,7 @@ message Game {
     }
 }
 
-// # Instances 
+// # Instances
 
 message Instance {
     string directory = 1;
@@ -189,7 +191,7 @@ message Module {
         MODULE_METAPACKAGE = 2;
         MODULE_DLC = 3;
     }
-    
+
     message Relationship {
         message DirectRelationship {
             // The identifier to match
@@ -201,7 +203,7 @@ message Module {
         message AnyOfRelationship {
             repeated Relationship allowed_modules = 1;
         }
-        
+
         optional string choice_help_text = 1;
         // If true, then don't show recommendations and suggestions of this module or its dependencies.
         // Otherwise recommendations and suggestions of everything in changeset will be included.
@@ -212,14 +214,14 @@ message Module {
             AnyOfRelationship any_of = 4;
         }
     }
-    
+
     enum ReleaseStatus {
         MRS_UNKNOWN = 0;
         MRS_STABLE = 1;
         MRS_TESTING = 2;
         MRS_DEVELOPMENT = 3;
     }
-    
+
     message Resources {
         optional string homepage = 1;
         optional string spacedock = 2;
@@ -236,7 +238,7 @@ message Module {
         optional string store = 13;
         optional string steam_store = 14;
     }
-    
+
     string abstract = 1;
     optional string description = 2;
     optional Kind kind = 3;
@@ -262,6 +264,9 @@ message Module {
     string version = 28;
     repeated Relationship supports = 29;
     repeated string localizations = 30;
+    repeated string tags = 31;
+    google.protobuf.Timestamp release_date = 32;
+    uint64 download_count = 34;
 }
 
 enum RegistryOperationResult {

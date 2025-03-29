@@ -1,50 +1,61 @@
 using CKAN;
 using CKAN.Versioning;
+using Google.Protobuf.WellKnownTypes;
 
 namespace CKANServer.Utils;
 
 public static class CkanModuleExtension
 {
-    public static Module ToProto(this CkanModule module)
+    public static Module ToProto(
+        this CkanModule module,
+        RepositoryDataManager repositoryDataManager,
+        IRegistryQuerier querier
+    )
     {
         var buf = new Module();
-        
+
         buf.Abstract = module.@abstract;
-        
+
         if (module.description != null) buf.Description = module.description;
-        
+
         buf.Kind = Kind(module.kind);
         buf.Authors.AddRange(module.author);
-        
+
         if (module.conflicts != null) buf.Conflicts.AddRange(module.conflicts.Select(r => r.ToProto()));
         if (module.depends != null) buf.Depends.AddRange(module.depends.Select(r => r.ToProto()));
         if (module.replaced_by != null) buf.ReplacedBy = module.replaced_by.ToProto();
         if (module.download != null) buf.DownloadUris.AddRange(module.download.Select(u => u.ToString()));
-        
+
         buf.DownloadSizeBytes = (ulong)module.download_size;
         buf.InstallSizeBytes = (ulong)module.install_size;
         buf.Identifier = module.identifier;
-        
+
         if (module.ksp_version != null) buf.KspVersion = module.ksp_version.ToProto();
         if (module.ksp_version_max != null) buf.KspVersionMax = module.ksp_version_max.ToProto();
         if (module.ksp_version_min != null) buf.KspVersionMin = module.ksp_version_min.ToProto();
-        
+
         if (module.ksp_version_strict != null) buf.KspVersionStrict = module.ksp_version_strict.Value;
         buf.Licenses.AddRange(module.license.Select(l => l.ToString()));
         buf.Name = module.name;
-        
+
         if (module.provides != null) buf.Provides.AddRange(module.provides);
         if (module.recommends != null) buf.Recommends.AddRange(module.recommends.Select(r => r.ToProto()));
-        
+
         buf.ReleaseStatus = ReleaseStatus(module.release_status ?? CKAN.ReleaseStatus.stable);
         if (module.resources != null) buf.Resources = module.resources.ToProto();
-        
+
         if (module.suggests != null) buf.Suggests.AddRange(module.suggests.Select(r => r.ToProto()));
 
         buf.Version = module.version.ToString();
-        
+
         if (module.supports != null) buf.Supports.AddRange(module.supports.Select(r => r.ToProto()));
         if (module.localizations != null) buf.Localizations.AddRange(module.localizations);
+
+        if (module.Tags != null) buf.Tags.AddRange(module.Tags);
+        if (module.release_date != null) buf.ReleaseDate = Timestamp.FromDateTime(module.release_date.Value);
+
+        var downloads = repositoryDataManager.GetDownloadCount(querier.Repositories.Values, module.identifier);
+        if (downloads != null) buf.DownloadCount = (ulong)downloads;
 
         return buf;
     }

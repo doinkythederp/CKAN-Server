@@ -51,7 +51,7 @@ public partial class CkanAction
             return;
         }
 
-        await WriteInstanceOpReply(InstanceOperationResult.IorSuccess);
+        await WriteRegistryOpReply(RegistryOperationResult.RorSuccess);
     }
 
     public async Task CompatibleModules(RegistryCompatibleModulesRequest request)
@@ -65,7 +65,7 @@ public partial class CkanAction
         var modules = regMgr.registry.CompatibleModules(instance.StabilityToleranceConfig, instance.VersionCriteria());
         
         var reply = new RegistryCompatibleModulesReply();
-        reply.Modules.AddRange(modules.Select(m => m.ToProto()));
+        reply.Modules.AddRange(modules.Select(m => m.ToProto(RepoManager, regMgr.registry)));
         
         await WriteMessageAsync(new ActionReply
         {
