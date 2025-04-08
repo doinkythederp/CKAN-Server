@@ -25,6 +25,8 @@ message GetVersionReply {
 }
 
 message ActionMessage {
+    reserved 10;
+    
     oneof request {
         ContinueRequest continue_request = 1;
 
@@ -37,7 +39,7 @@ message ActionMessage {
         InstanceSetDefaultRequest instance_set_default_request = 8;
 
         RegistryPrepopulateRequest registry_prepopulate_request = 9;
-        RegistryCompatibleModulesRequest registry_compatible_modules_request = 10;
+        RegistryAvailableModulesRequest registry_available_modules_request = 11;
     }
 }
 
@@ -105,12 +107,26 @@ message Game {
 // # Instances
 
 message Instance {
+    message VersionCompatibility {
+        optional Game.Version game_version_when_last_updated = 1;
+        repeated Game.Version compatible_versions = 2;
+    }
+    
     string directory = 1;
     string gameId = 2;
     // Guaranteed to be unique
     string name = 3;
     Game.Version game_version = 4;
     bool is_default = 5;
+    
+    // # Compatibility
+    
+    // The minimum allowed stability of mods for them to be considered "compatible".
+    Module.ReleaseStatus stability_tolerance = 6;
+    // Overrides for individual mod identifiers.
+    map<string, Module.ReleaseStatus> stability_tolerance_overrides = 7;
+    // Controls which mods are compatible based on their targeted game versions.
+    VersionCompatibility version_compatibility = 8;
 }
 
 enum InstanceOperationResult {
@@ -238,35 +254,42 @@ message Module {
         optional string store = 13;
         optional string steam_store = 14;
     }
-
-    string abstract = 1;
-    optional string description = 2;
-    optional Kind kind = 3;
-    repeated string authors = 4;
-    repeated Relationship conflicts = 6;
-    repeated Relationship depends = 7;
-    optional Relationship replaced_by = 8;
-    repeated string download_uris = 9;
-    uint64 download_size_bytes = 10;
-    uint64 install_size_bytes = 14;
-    string identifier = 15;
-    optional Game.Version ksp_version = 16;
-    optional Game.Version ksp_version_max = 17;
-    optional Game.Version ksp_version_min = 18;
-    bool ksp_version_strict = 19;
-    repeated string licenses = 20;
-    string name = 21;
-    repeated string provides = 22;
-    repeated Relationship recommends = 23;
-    ReleaseStatus release_status = 25;
-    Resources resources = 26;
-    repeated Relationship suggests = 27;
-    string version = 28;
-    repeated Relationship supports = 29;
-    repeated string localizations = 30;
-    repeated string tags = 31;
-    google.protobuf.Timestamp release_date = 32;
-    uint64 download_count = 34;
+    
+    message Release {
+        string name = 2;
+        string version = 3;
+        ReleaseStatus release_status = 4;
+        string abstract = 5;
+        optional string description = 6;
+        optional Kind kind = 7;
+        repeated string authors = 8;
+        repeated string licenses = 9;
+        repeated string tags = 10;
+        repeated string localizations = 11;
+        google.protobuf.Timestamp release_date = 12;
+        Resources resources = 13;
+        
+        repeated Relationship conflicts = 14;
+        repeated Relationship depends = 15;
+        repeated Relationship recommends = 16;
+        repeated Relationship suggests = 17;
+        repeated Relationship supports = 18;
+        optional Relationship replaced_by = 19;
+        repeated string provides = 20;
+        
+        repeated string download_uris = 21;
+        uint64 download_size_bytes = 22;
+        uint64 install_size_bytes = 23;
+        uint64 download_count = 24;
+        
+        optional Game.Version ksp_version = 25;
+        optional Game.Version ksp_version_max = 26;
+        optional Game.Version ksp_version_min = 27;
+        bool ksp_version_strict = 28;
+    }
+    
+    string identifier = 1;
+    repeated Release releases = 2;
 }
 
 enum RegistryOperationResult {
@@ -275,10 +298,12 @@ enum RegistryOperationResult {
 }
 
 message RegistryOperationReply {
+    reserved 3;
+    
     RegistryOperationResult result = 1;
     optional string error_details = 2;
     oneof results {
-        RegistryCompatibleModulesReply compatible_modules = 3;
+        RegistryAvailableModulesReply available_modules = 4;
     }
 }
 
@@ -287,10 +312,10 @@ message RegistryPrepopulateRequest {
     bool force_lock = 2;
 }
 
-message RegistryCompatibleModulesRequest {
+message RegistryAvailableModulesRequest {
     string instance_name = 1;
 }
 
-message RegistryCompatibleModulesReply {
+message RegistryAvailableModulesReply {
     repeated Module modules = 1;
 }

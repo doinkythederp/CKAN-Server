@@ -9,17 +9,15 @@ namespace CKANServer.Services.Action;
 
 public partial class CkanAction
 {
-    private async Task WriteInstanceOpReply(InstanceOperationResult instanceOperationResult, string? errorDetails = null)
+    private async Task WriteInstanceOpReply(InstanceOperationResult instanceOperationResult,
+        string? errorDetails = null)
     {
         var instanceOperationReply = new InstanceOperationReply
         {
             Result = instanceOperationResult,
         };
-        if (errorDetails != null)
-        {
-            instanceOperationReply.ErrorDetails = errorDetails;
-        }
-        
+        if (errorDetails != null) instanceOperationReply.ErrorDetails = errorDetails;
+
         await WriteMessageAsync(new ActionReply
         {
             InstanceOperationReply = instanceOperationReply,
@@ -28,25 +26,14 @@ public partial class CkanAction
 
     public void SetupInstances()
     {
-        if (InstanceManager.Instances.Count == 0)
-        {
-            InstanceManager.FindAndRegisterDefaultInstances();
-        }
+        if (InstanceManager.Instances.Count == 0) InstanceManager.FindAndRegisterDefaultInstances();
     }
 
     public async Task ListInstances()
     {
         logger.LogInformation("Listing {NumInstances} instances", InstanceManager.Instances.Count);
-        var autoStartInstance = InstanceManager.AutoStartInstance;
-        var instances = InstanceManager.Instances.Select(item => new Instance
-        {
-            // Not sure if there's an actual "ID", but this seems constant enough
-            GameId = item.Value.game.ShortName,
-            Directory = item.Value.GameDir(),
-            Name = item.Value.Name,
-            GameVersion = item.Value.Version()?.ToProto(),
-            IsDefault = autoStartInstance == item.Value.Name,
-        });
+        var instances = InstanceManager.Instances
+            .Select(item => item.Value.ToProto(InstanceManager));
 
         var reply = new InstancesListReply();
         reply.Instances.Add(instances);
@@ -142,14 +129,10 @@ public partial class CkanAction
 
         var dlcs = new Dictionary<IDlcDetector, GameVersion>();
         if (request.MakingHistoryVersion != null)
-        {
             dlcs.Add(new MakingHistoryDlcDetector(), request.MakingHistoryVersion.ToCkan());
-        }
 
         if (request.BreakingGroundVersion != null)
-        {
             dlcs.Add(new BreakingGroundDlcDetector(), request.BreakingGroundVersion.ToCkan());
-        }
 
         var version = request.Version.ToCkan();
         // Check if we have enough info about the version - we need the first 3 components, but the build is optional.
@@ -164,9 +147,7 @@ public partial class CkanAction
         {
             InstanceManager.FakeInstance(game, request.Name, request.Directory, version, dlcs);
             if (request.UseAsNewDefault && InstanceManager.HasInstance(request.Name))
-            {
                 InstanceManager.SetAutoStart(request.Name);
-            }
         }
         catch (InstanceNameTakenKraken ex)
         {
@@ -231,7 +212,7 @@ public partial class CkanAction
                 existingInstance,
                 request.NewName,
                 request.NewDirectory,
-                shareStockFolders: request.CreateSymlinksForStockDirs);
+                request.CreateSymlinksForStockDirs);
         }
         catch (NotKSPDirKraken ex)
         {

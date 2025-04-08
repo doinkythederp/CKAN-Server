@@ -11,10 +11,7 @@ public partial class CkanAction
         {
             Result = result,
         };
-        if (errorDetails != null)
-        {
-            reply.ErrorDetails = errorDetails;
-        }
+        if (errorDetails != null) reply.ErrorDetails = errorDetails;
 
         await WriteMessageAsync(new ActionReply
         {
@@ -39,7 +36,7 @@ public partial class CkanAction
             if (!isRetry && request.ForceLock)
             {
                 File.Delete(ex.lockfilePath);
-                await PrepopulateRegistry(request, isRetry: true);
+                await PrepopulateRegistry(request, true);
                 return;
             }
 
@@ -54,25 +51,26 @@ public partial class CkanAction
         await WriteRegistryOpReply(RegistryOperationResult.RorSuccess);
     }
 
-    public async Task CompatibleModules(RegistryCompatibleModulesRequest request)
+    public async Task AvailableModules(RegistryAvailableModulesRequest request)
     {
         logger.LogInformation("Fetching modules compatible with instance {Name}", request.InstanceName);
         var instance = await InstanceFromName(request.InstanceName);
         if (instance == null) return;
 
         var regMgr = RegistryManagerFor(instance);
+        var modules = RepoManager.GetAllAvailableModules(regMgr.registry.Repositories.Values);
 
-        var modules = regMgr.registry.CompatibleModules(instance.StabilityToleranceConfig, instance.VersionCriteria());
-        
-        var reply = new RegistryCompatibleModulesReply();
-        reply.Modules.AddRange(modules.Select(m => m.ToProto(RepoManager, regMgr.registry)));
-        
+        var reply = new RegistryAvailableModulesReply();
+        reply.Modules.AddRange(modules
+            .Select(m => m.ToProto(RepoManager, regMgr.registry))
+            .OfType<Module>());
+
         await WriteMessageAsync(new ActionReply
         {
             RegistryOperationReply = new RegistryOperationReply
             {
                 Result = RegistryOperationResult.RorSuccess,
-                CompatibleModules = reply,
+                AvailableModules = reply,
             },
         });
     }

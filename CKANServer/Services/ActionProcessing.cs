@@ -1,12 +1,7 @@
-using System.Collections.Concurrent;
 using System.Threading.Channels;
 using CKAN;
-using CKAN.Configuration;
-using CKAN.Versioning;
 using CKANServer.Services.Action;
 using Grpc.Core;
-using log4net;
-using IConfiguration = Microsoft.Extensions.Configuration.IConfiguration;
 
 namespace CKANServer.Services;
 
@@ -32,7 +27,7 @@ public class CkanManager : ICkanManager
         var processor = new ActionProcessor(channel.Reader, logger);
         Task.Run(() => processor.RunAsync());
     }
-    
+
     public async Task RunAction(ClientHandle handle, CancellationToken token)
     {
         var messageChannel = Channel.CreateUnbounded<ActionMessage>();
@@ -64,7 +59,7 @@ public class CkanManager : ICkanManager
                     RepoManager = _repoMgr,
                     User = new NullUser(),
                 };
-                
+
                 try
                 {
                     await ProcessOne(action);
@@ -80,11 +75,11 @@ public class CkanManager : ICkanManager
         {
             var request = await action.ReadMessageAsync();
             if (request == null) return;
-            
+
             try
             {
                 action.SetupInstances();
-                
+
                 switch (request.RequestCase)
                 {
                     // # Game Instance Requests
@@ -109,14 +104,14 @@ public class CkanManager : ICkanManager
                     case ActionMessage.RequestOneofCase.InstanceCloneRequest:
                         await action.CloneInstance(request.InstanceCloneRequest);
                         break;
-                    
+
                     case ActionMessage.RequestOneofCase.RegistryPrepopulateRequest:
                         await action.PrepopulateRegistry(request.RegistryPrepopulateRequest);
                         break;
-                    case ActionMessage.RequestOneofCase.RegistryCompatibleModulesRequest:
-                        await action.CompatibleModules(request.RegistryCompatibleModulesRequest);
+                    case ActionMessage.RequestOneofCase.RegistryAvailableModulesRequest:
+                        await action.AvailableModules(request.RegistryAvailableModulesRequest);
                         break;
-                        
+
                     case ActionMessage.RequestOneofCase.ContinueRequest:
                         await action.FailAsync("A continuation request cannot be the first message sent");
                         break;
@@ -131,7 +126,7 @@ public class CkanManager : ICkanManager
                 logger.LogError("ERROR! {Error}", err);
                 await action.FailAsync(err.ToString());
             }
-            
+
             action.Context.CompletionSource.SetResult();
         }
     }
