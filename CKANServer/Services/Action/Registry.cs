@@ -53,7 +53,7 @@ public partial class CkanAction
 
     public async Task AvailableModules(RegistryAvailableModulesRequest request)
     {
-        logger.LogInformation("Fetching modules compatible with instance {Name}", request.InstanceName);
+        logger.LogInformation("Fetching modules available to instance {Name}", request.InstanceName);
         var instance = await InstanceFromName(request.InstanceName);
         if (instance == null) return;
 
@@ -73,5 +73,72 @@ public partial class CkanAction
                 AvailableModules = reply,
             },
         });
+    }
+
+    public async Task ModuleCategories(RegistryModuleCategoriesRequest request)
+    {
+        logger.LogInformation("Sorting modules into categories relevant to instance {Name}", request.InstanceName);
+        var instance = await InstanceFromName(request.InstanceName);
+        if (instance == null) return;
+
+        ApplyCompatOptions(request, instance);
+
+        var regMgr = RegistryManagerFor(instance);
+        var sorter =
+            regMgr.registry.SetCompatibleVersion(instance.StabilityToleranceConfig, instance.VersionCriteria());
+
+        var reply = new RegistryModuleCategoriesReply();
+        reply.LatestCompatibleReleases.Add(ConvertToDictionary(sorter.LatestCompatible));
+        reply.LatestIncompatibleReleases.Add(ConvertToDictionary(sorter.LatestIncompatible));
+
+        await WriteMessageAsync(new ActionReply
+        {
+            RegistryOperationReply = new RegistryOperationReply
+            {
+                Result = RegistryOperationResult.RorSuccess,
+                ModuleCategories = reply,
+            },
+        });
+
+        return;
+
+        Dictionary<string, string> ConvertToDictionary(ICollection<CkanModule> collection) =>
+            collection
+                .Select(module => KeyValuePair.Create(module.identifier, module.version.ToString()))
+                .ToDictionary();
+    }
+
+    private static void ApplyCompatOptions(RegistryModuleCategoriesRequest request, GameInstance instance)
+    {
+        var stabilityTolerance = instance.StabilityToleranceConfig;
+        if (request.CompatOptions == null) return;
+
+        stabilityTolerance.OverallStabilityTolerance =
+            request.CompatOptions.StabilityTolerance.FromProto() ?? ReleaseStatus.stable;
+
+        var overrides = request.CompatOptions.StabilityToleranceOverrides;
+        var overriddenIds = stabilityTolerance.OverriddenModIdentifiers
+            .Union(overrides.Keys);
+
+        foreach (var id in overriddenIds)
+        {
+            ReleaseStatus? tolerance = null;
+            if (overrides.ContainsKey(id))
+            {
+                tolerance = request.CompatOptions.StabilityToleranceOverrides[id].FromProto();
+            }
+
+            stabilityTolerance.SetModStabilityTolerance(id, tolerance);
+        }
+
+        stabilityTolerance.Save();
+
+        if (request.CompatOptions.VersionCompatibility is { } versionCompat)
+        {
+            instance.SetCompatibleVersions(versionCompat
+                .CompatibleVersions
+                .Select(version => version.ToCkan())
+                .ToList());
+        }
     }
 }

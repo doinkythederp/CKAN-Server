@@ -40,6 +40,7 @@ message ActionMessage {
 
         RegistryPrepopulateRequest registry_prepopulate_request = 9;
         RegistryAvailableModulesRequest registry_available_modules_request = 11;
+        RegistryModuleCategoriesRequest registry_module_categories_request = 12;
     }
 }
 
@@ -107,6 +108,17 @@ message Game {
 // # Instances
 
 message Instance {
+    message CompatOptions {
+        // The minimum allowed stability of mods for them to be considered "compatible".
+        Module.ReleaseStatus stability_tolerance = 1;
+        
+        // Overrides for individual mod identifiers.
+        map<string, Module.ReleaseStatus> stability_tolerance_overrides = 2;
+        
+        // Controls which mods are compatible based on their targeted game versions.
+        VersionCompatibility version_compatibility = 3;
+    }
+    
     message VersionCompatibility {
         optional Game.Version game_version_when_last_updated = 1;
         repeated Game.Version compatible_versions = 2;
@@ -118,15 +130,7 @@ message Instance {
     string name = 3;
     Game.Version game_version = 4;
     bool is_default = 5;
-    
-    // # Compatibility
-    
-    // The minimum allowed stability of mods for them to be considered "compatible".
-    Module.ReleaseStatus stability_tolerance = 6;
-    // Overrides for individual mod identifiers.
-    map<string, Module.ReleaseStatus> stability_tolerance_overrides = 7;
-    // Controls which mods are compatible based on their targeted game versions.
-    VersionCompatibility version_compatibility = 8;
+    CompatOptions compat_options = 6;
 }
 
 enum InstanceOperationResult {
@@ -304,6 +308,7 @@ message RegistryOperationReply {
     optional string error_details = 2;
     oneof results {
         RegistryAvailableModulesReply available_modules = 4;
+        RegistryModuleCategoriesReply module_categories = 5;
     }
 }
 
@@ -318,4 +323,17 @@ message RegistryAvailableModulesRequest {
 
 message RegistryAvailableModulesReply {
     repeated Module modules = 1;
+}
+
+// Sort module releases into compatible/incompatible categories.
+message RegistryModuleCategoriesRequest {
+    string instance_name = 1;
+    Instance.CompatOptions compat_options = 2;
+}
+
+message RegistryModuleCategoriesReply {
+    // Map of module id to version
+    map<string, string> latest_compatible_releases = 1;
+    // Map of module id to version
+    map<string, string> latest_incompatible_releases = 2;
 }

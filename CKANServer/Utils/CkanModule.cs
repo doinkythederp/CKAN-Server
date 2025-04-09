@@ -94,6 +94,17 @@ public static class CkanModuleExtension
             _ => Module.Types.ReleaseStatus.MrsUnknown,
         };
     }
+
+    public static ReleaseStatus? FromProto(this Module.Types.ReleaseStatus value)
+    {
+        return value switch
+        {
+            Module.Types.ReleaseStatus.MrsStable => ReleaseStatus.stable,
+            Module.Types.ReleaseStatus.MrsTesting => ReleaseStatus.testing,
+            Module.Types.ReleaseStatus.MrsDevelopment => ReleaseStatus.development,
+            _ => null,
+        };
+    }
 }
 
 public static class RelationshipDescriptorExtension

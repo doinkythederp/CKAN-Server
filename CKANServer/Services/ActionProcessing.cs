@@ -111,6 +111,9 @@ public class CkanManager : ICkanManager
                     case ActionMessage.RequestOneofCase.RegistryAvailableModulesRequest:
                         await action.AvailableModules(request.RegistryAvailableModulesRequest);
                         break;
+                    case ActionMessage.RequestOneofCase.RegistryModuleCategoriesRequest:
+                        await action.ModuleCategories(request.RegistryModuleCategoriesRequest);
+                        break;
 
                     case ActionMessage.RequestOneofCase.ContinueRequest:
                         await action.FailAsync("A continuation request cannot be the first message sent");

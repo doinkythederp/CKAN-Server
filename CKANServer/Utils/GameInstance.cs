@@ -16,18 +16,21 @@ public static class GameInstanceExtensions
             Name = gameInstance.Name,
             GameVersion = gameInstance.Version()?.ToProto(),
             IsDefault = autoStartInstance == gameInstance.Name,
-            StabilityTolerance = gameInstance.StabilityToleranceConfig.OverallStabilityTolerance.ToProto(),
+            CompatOptions = new Instance.Types.CompatOptions
+            {
+                StabilityTolerance = gameInstance.StabilityToleranceConfig.OverallStabilityTolerance.ToProto(),
+            },
         };
 
         foreach (var id in gameInstance.StabilityToleranceConfig.OverriddenModIdentifiers)
-            buf.StabilityToleranceOverrides[id] = (gameInstance.StabilityToleranceConfig.ModStabilityTolerance(id) ??
-                                                   ReleaseStatus.stable).ToProto();
+            buf.CompatOptions.StabilityToleranceOverrides[id] = (gameInstance.StabilityToleranceConfig.ModStabilityTolerance(id) ??
+                                                                ReleaseStatus.stable).ToProto();
 
-        buf.VersionCompatibility = new Instance.Types.VersionCompatibility();
+        buf.CompatOptions.VersionCompatibility = new Instance.Types.VersionCompatibility();
         if (gameInstance.GameVersionWhenCompatibleVersionsWereStored is { } version)
-            buf.VersionCompatibility.GameVersionWhenLastUpdated =
+            buf.CompatOptions.VersionCompatibility.GameVersionWhenLastUpdated =
                 version.ToProto();
-        buf.VersionCompatibility.CompatibleVersions.AddRange(
+        buf.CompatOptions.VersionCompatibility.CompatibleVersions.AddRange(
             gameInstance.GetCompatibleVersions()
                 .Select(gameVersion => gameVersion.ToProto()));
 
