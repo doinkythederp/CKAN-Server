@@ -40,7 +40,8 @@ message ActionMessage {
 
         RegistryPrepopulateRequest registry_prepopulate_request = 9;
         RegistryAvailableModulesRequest registry_available_modules_request = 11;
-        RegistryModuleCategoriesRequest registry_module_categories_request = 12;
+        RegistryModuleStatesRequest registry_module_states_request = 12;
+        RegistryCompatibleModuleReleasesRequest registry_compatible_module_releases = 13;
     }
 }
 
@@ -261,6 +262,7 @@ message Module {
     
     message Release {
         string name = 2;
+        // Unique per module.
         string version = 3;
         ReleaseStatus release_status = 4;
         string abstract = 5;
@@ -296,9 +298,46 @@ message Module {
     repeated Release releases = 2;
 }
 
+// An installed module managed by CKAN 
+message ManagedInstalledModule {
+    google.protobuf.Timestamp install_date = 1;
+    string release_version = 2;
+    bool is_auto_installed = 3;
+}
+
+// An installed module managed by a system other than CKAN (e.g. Steam or the user themselves)
+message UnmanagedInstalledModule {
+    // The installed version of the module. 
+    // 
+    // If omitted, the version is unknown.
+    // Generally, only DLCs have known versions.
+    optional string release_version = 1;
+}
+
+message ModuleState {
+    string identifier = 1;
+    
+    oneof install {
+        ManagedInstalledModule managed_install = 2;
+        UnmanagedInstalledModule unmanaged_install = 3;
+    }
+    bool can_be_upgraded = 4;
+    
+    // True if the module cannot be installed with the current compatability settings
+    bool is_compatible = 5;
+    // The release to show to the user.
+    //
+    // If the module is installed, that version.
+    // If the module is compatible, the latest compatible release.
+    // Otherwise, the latest release that is stable enough to show.
+    optional string current_release = 6;
+}
+
 enum RegistryOperationResult {
     ROR_SUCCESS = 0;
     ROR_REGISTRY_IN_USE = 1;
+    // There is no module with the given identifier.
+    ROR_MODULE_NOT_FOUND = 2;
 }
 
 message RegistryOperationReply {
@@ -308,7 +347,8 @@ message RegistryOperationReply {
     optional string error_details = 2;
     oneof results {
         RegistryAvailableModulesReply available_modules = 4;
-        RegistryModuleCategoriesReply module_categories = 5;
+        RegistryModuleStatesReply module_states = 5;
+        RegistryCompatibleModuleReleasesReply compatible_module_releases = 6;
     }
 }
 
@@ -325,15 +365,27 @@ message RegistryAvailableModulesReply {
     repeated Module modules = 1;
 }
 
-// Sort module releases into compatible/incompatible categories.
-message RegistryModuleCategoriesRequest {
+// Fetch the install & compatability information for all available modules.
+message RegistryModuleStatesRequest {
     string instance_name = 1;
     Instance.CompatOptions compat_options = 2;
+    
+    // IDs of modules which are never upgradable
+    repeated string held_module_idents = 3;
+    // IDs of Modules which are allowed to be missing files without being considered upgradable
+    repeated string incomplete_module_idents = 4;
 }
 
-message RegistryModuleCategoriesReply {
-    // Map of module id to version
-    map<string, string> latest_compatible_releases = 1;
-    // Map of module id to version
-    map<string, string> latest_incompatible_releases = 2;
+message RegistryModuleStatesReply {
+    repeated ModuleState states = 1;
+}
+
+message RegistryCompatibleModuleReleasesRequest {
+    string instance_name = 1;
+    string module_id = 2;
+    Instance.CompatOptions compat_options = 3;
+}
+
+message RegistryCompatibleModuleReleasesReply {
+    repeated string compatible_versions = 1;
 }

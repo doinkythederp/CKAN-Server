@@ -111,8 +111,11 @@ public class CkanManager : ICkanManager
                     case ActionMessage.RequestOneofCase.RegistryAvailableModulesRequest:
                         await action.AvailableModules(request.RegistryAvailableModulesRequest);
                         break;
-                    case ActionMessage.RequestOneofCase.RegistryModuleCategoriesRequest:
-                        await action.ModuleCategories(request.RegistryModuleCategoriesRequest);
+                    case ActionMessage.RequestOneofCase.RegistryModuleStatesRequest:
+                        await action.ModuleStates(request.RegistryModuleStatesRequest);
+                        break;
+                    case ActionMessage.RequestOneofCase.RegistryCompatibleModuleReleases:
+                        await action.CompatibleModuleReleases(request.RegistryCompatibleModuleReleases);
                         break;
 
                     case ActionMessage.RequestOneofCase.ContinueRequest:

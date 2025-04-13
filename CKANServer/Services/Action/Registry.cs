@@ -1,5 +1,8 @@
+using System.Diagnostics;
 using CKAN;
+using CKAN.Versioning;
 using CKANServer.Utils;
+using Google.Protobuf.WellKnownTypes;
 
 namespace CKANServer.Services.Action;
 
@@ -75,48 +78,104 @@ public partial class CkanAction
         });
     }
 
-    public async Task ModuleCategories(RegistryModuleCategoriesRequest request)
+    /// <summary>
+    /// Retrieve information about the modules available to the given instance, such as whether they are installed
+    /// and if they can be upgraded.
+    /// </summary>
+    public async Task ModuleStates(RegistryModuleStatesRequest request)
     {
-        logger.LogInformation("Sorting modules into categories relevant to instance {Name}", request.InstanceName);
+        logger.LogInformation("Fetching module states for instance {Name}", request.InstanceName);
         var instance = await InstanceFromName(request.InstanceName);
         if (instance == null) return;
 
-        ApplyCompatOptions(request, instance);
+        if (request.CompatOptions != null)
+        {
+            ApplyCompatOptionsTo(instance, request.CompatOptions);
+        }
 
-        var regMgr = RegistryManagerFor(instance);
+        var registry = RegistryManagerFor(instance).registry;
+
+        var states = new Dictionary<string, ModuleState>();
+
+        // First search for all installed modules. Anything returned by CheckUpgradeable is already installed.
+
+        var upgradableLists = registry.CheckUpgradeable(instance,
+            [..request.HeldModuleIdents]);
+
+        foreach (var (isUpgradable, modules) in upgradableLists)
+        {
+            foreach (var module in modules)
+            {
+                var state = new ModuleState
+                {
+                    Identifier = module.identifier,
+                    CanBeUpgraded = isUpgradable,
+                    IsCompatible = true,
+                    CurrentRelease = module.version.ToString(),
+                };
+                QueryInstallState(module.identifier, registry, state);
+                states[module.identifier] = state;
+            }
+        }
+
+        // Now add everything else. We filter out mods that are installed to prevent duplicates.
+
         var sorter =
-            regMgr.registry.SetCompatibleVersion(instance.StabilityToleranceConfig, instance.VersionCriteria());
+            registry.SetCompatibleVersion(instance.StabilityToleranceConfig, instance.VersionCriteria());
 
-        var reply = new RegistryModuleCategoriesReply();
-        reply.LatestCompatibleReleases.Add(ConvertToDictionary(sorter.LatestCompatible));
-        reply.LatestIncompatibleReleases.Add(ConvertToDictionary(sorter.LatestIncompatible));
+        foreach (var module in sorter.LatestCompatible)
+        {
+            if (registry.IsInstalled(module.identifier, with_provides: false))
+            {
+                Debug.Assert(states.ContainsKey(module.identifier));
+                continue;
+            }
+
+            states[module.identifier] = new ModuleState
+            {
+                Identifier = module.identifier,
+                IsCompatible = true,
+                CurrentRelease = module.version.ToString(),
+            };
+        }
+
+        foreach (var module in sorter.LatestIncompatible)
+        {
+            if (registry.IsInstalled(module.identifier, with_provides: false))
+            {
+                Debug.Assert(states.ContainsKey(module.identifier));
+                continue;
+            }
+
+            states[module.identifier] = new ModuleState
+            {
+                Identifier = module.identifier,
+                IsCompatible = false,
+                CurrentRelease = module.version.ToString(),
+            };
+        }
 
         await WriteMessageAsync(new ActionReply
         {
             RegistryOperationReply = new RegistryOperationReply
             {
                 Result = RegistryOperationResult.RorSuccess,
-                ModuleCategories = reply,
+                ModuleStates = new RegistryModuleStatesReply
+                {
+                    States = { states.Values },
+                },
             },
         });
-
-        return;
-
-        Dictionary<string, string> ConvertToDictionary(ICollection<CkanModule> collection) =>
-            collection
-                .Select(module => KeyValuePair.Create(module.identifier, module.version.ToString()))
-                .ToDictionary();
     }
 
-    private static void ApplyCompatOptions(RegistryModuleCategoriesRequest request, GameInstance instance)
+    private static void ApplyCompatOptionsTo(GameInstance instance, Instance.Types.CompatOptions options)
     {
         var stabilityTolerance = instance.StabilityToleranceConfig;
-        if (request.CompatOptions == null) return;
 
         stabilityTolerance.OverallStabilityTolerance =
-            request.CompatOptions.StabilityTolerance.FromProto() ?? ReleaseStatus.stable;
+            options.StabilityTolerance.FromProto() ?? ReleaseStatus.stable;
 
-        var overrides = request.CompatOptions.StabilityToleranceOverrides;
+        var overrides = options.StabilityToleranceOverrides;
         var overriddenIds = stabilityTolerance.OverriddenModIdentifiers
             .Union(overrides.Keys);
 
@@ -125,7 +184,7 @@ public partial class CkanAction
             ReleaseStatus? tolerance = null;
             if (overrides.ContainsKey(id))
             {
-                tolerance = request.CompatOptions.StabilityToleranceOverrides[id].FromProto();
+                tolerance = options.StabilityToleranceOverrides[id].FromProto();
             }
 
             stabilityTolerance.SetModStabilityTolerance(id, tolerance);
@@ -133,12 +192,99 @@ public partial class CkanAction
 
         stabilityTolerance.Save();
 
-        if (request.CompatOptions.VersionCompatibility is { } versionCompat)
+        if (options.VersionCompatibility is { } versionCompat)
         {
             instance.SetCompatibleVersions(versionCompat
                 .CompatibleVersions
                 .Select(version => version.ToCkan())
                 .ToList());
         }
+    }
+
+    /// <summary>
+    /// Fills the <c>install</c> field in <c>state</c> with the installation status of the module with the identifier
+    /// <c>moduleId</c> using information from the given <c>querier</c>.
+    /// </summary>
+    private static void QueryInstallState(string moduleId, IRegistryQuerier querier, ModuleState state)
+    {
+        var installVersion = querier.InstalledVersion(moduleId, with_provides: false);
+
+        if (installVersion is UnmanagedModuleVersion unmanagedVersion)
+        {
+            state.UnmanagedInstall = new UnmanagedInstalledModule();
+            if (!unmanagedVersion.IsUnknownVersion)
+            {
+                state.UnmanagedInstall.ReleaseVersion = unmanagedVersion.ToString();
+            }
+
+            return;
+        }
+
+        var installedModule = querier.InstalledModule(moduleId);
+        if (installedModule is null) return;
+
+        state.ManagedInstall = new ManagedInstalledModule
+        {
+            ReleaseVersion = installedModule.Module.version.ToString(),
+            InstallDate = Timestamp.FromDateTime(installedModule.InstallTime),
+            IsAutoInstalled = installedModule.AutoInstalled,
+        };
+    }
+
+    /// <summary>
+    /// Queries the list of releases of the given module that are compatible with the given instance. 
+    /// </summary>
+    public async Task CompatibleModuleReleases(RegistryCompatibleModuleReleasesRequest request)
+    {
+        logger.LogInformation(
+            "Fetching versions of module {Module} compatible with instance {Name}", 
+            request.ModuleId,
+            request.InstanceName);
+        
+        var instance = await InstanceFromName(request.InstanceName);
+        if (instance == null) return;
+
+        if (request.CompatOptions != null)
+        {
+            ApplyCompatOptionsTo(instance, request.CompatOptions);
+        }
+
+        var registry = RegistryManagerFor(instance).registry;
+
+        IEnumerable<CkanModule> releases;
+        try
+        {
+            releases = registry.AvailableByIdentifier(request.ModuleId);
+        }
+        catch (ModuleNotFoundKraken ex)
+        {
+            await WriteRegistryOpReply(RegistryOperationResult.RorModuleNotFound, ex.module);
+            return;
+        }
+
+        var compatibleReleases = releases.Where(module =>
+        {
+            var stabilityTolerance = instance.StabilityToleranceConfig.ModStabilityTolerance(module.identifier)
+                                     ?? instance.StabilityToleranceConfig.OverallStabilityTolerance;
+
+            return module.IsCompatible(instance.VersionCriteria())
+                   && module.release_status <= stabilityTolerance
+                   && ModuleInstaller.CanInstall([module],
+                       RelationshipResolverOptions.DependsOnlyOpts(instance.StabilityToleranceConfig),
+                       registry, instance.game, instance.VersionCriteria());
+        })
+        .Select(module => module.version.ToString());
+
+        await WriteMessageAsync(new ActionReply
+        {
+            RegistryOperationReply = new RegistryOperationReply
+            {
+                Result = RegistryOperationResult.RorSuccess,
+                CompatibleModuleReleases = new RegistryCompatibleModuleReleasesReply
+                {
+                    CompatibleVersions = { compatibleReleases },
+                },
+            },
+        });
     }
 }
