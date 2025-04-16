@@ -63,19 +63,22 @@ public partial class CkanAction
         var regMgr = RegistryManagerFor(instance);
         var modules = RepoManager.GetAllAvailableModules(regMgr.registry.Repositories.Values);
 
-        var reply = new RegistryAvailableModulesReply();
-        reply.Modules.AddRange(modules
-            .Select(m => m.ToProto(RepoManager, regMgr.registry))
-            .OfType<Module>());
-
-        await WriteMessageAsync(new ActionReply
+        foreach (var chunk in modules.Chunk(50))
         {
-            RegistryOperationReply = new RegistryOperationReply
+            var reply = new RegistryAvailableModulesReply();
+            reply.Modules.AddRange(chunk
+                .Select(m => m.ToProto(RepoManager, regMgr.registry))
+                .OfType<Module>());
+            
+            await WriteMessageAsync(new ActionReply
             {
-                Result = RegistryOperationResult.RorSuccess,
-                AvailableModules = reply,
-            },
-        });
+                RegistryOperationReply = new RegistryOperationReply
+                {
+                    Result = RegistryOperationResult.RorSuccess,
+                    AvailableModules = reply,
+                },
+            });
+        }
     }
 
     /// <summary>

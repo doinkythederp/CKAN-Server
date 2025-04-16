@@ -361,6 +361,9 @@ message RegistryAvailableModulesRequest {
     string instance_name = 1;
 }
 
+// A list of modules indexed in the registry.
+// This is sent multiple times by the server to send the modules in chunks.
+// Modules without any releases are filtered out.
 message RegistryAvailableModulesReply {
     repeated Module modules = 1;
 }
