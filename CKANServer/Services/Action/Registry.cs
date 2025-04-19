@@ -61,21 +61,29 @@ public partial class CkanAction
         if (instance == null) return;
 
         var regMgr = RegistryManagerFor(instance);
-        var modules = RepoManager.GetAllAvailableModules(regMgr.registry.Repositories.Values);
+        var modules = RepoManager.GetAllAvailableModules(regMgr.registry.Repositories.Values).ToList();
 
-        foreach (var chunk in modules.Chunk(50))
+        var remaining = (uint)modules.Count;
+
+        foreach (var chunk in modules.Chunk(500))
         {
-            var reply = new RegistryAvailableModulesReply();
-            reply.Modules.AddRange(chunk
-                .Select(m => m.ToProto(RepoManager, regMgr.registry))
-                .OfType<Module>());
-            
+            remaining -= (uint)chunk.Length;
+
             await WriteMessageAsync(new ActionReply
             {
                 RegistryOperationReply = new RegistryOperationReply
                 {
                     Result = RegistryOperationResult.RorSuccess,
-                    AvailableModules = reply,
+                    AvailableModules = new RegistryAvailableModulesReply
+                    {
+                        Modules =
+                        {
+                            chunk
+                                .Select(m => m.ToProto(RepoManager, regMgr.registry))
+                                .OfType<Module>(),
+                        },
+                        Remaining = remaining,
+                    },
                 },
             });
         }
@@ -240,10 +248,10 @@ public partial class CkanAction
     public async Task CompatibleModuleReleases(RegistryCompatibleModuleReleasesRequest request)
     {
         logger.LogInformation(
-            "Fetching versions of module {Module} compatible with instance {Name}", 
+            "Fetching versions of module {Module} compatible with instance {Name}",
             request.ModuleId,
             request.InstanceName);
-        
+
         var instance = await InstanceFromName(request.InstanceName);
         if (instance == null) return;
 
@@ -266,17 +274,17 @@ public partial class CkanAction
         }
 
         var compatibleReleases = releases.Where(module =>
-        {
-            var stabilityTolerance = instance.StabilityToleranceConfig.ModStabilityTolerance(module.identifier)
-                                     ?? instance.StabilityToleranceConfig.OverallStabilityTolerance;
+            {
+                var stabilityTolerance = instance.StabilityToleranceConfig.ModStabilityTolerance(module.identifier)
+                                         ?? instance.StabilityToleranceConfig.OverallStabilityTolerance;
 
-            return module.IsCompatible(instance.VersionCriteria())
-                   && module.release_status <= stabilityTolerance
-                   && ModuleInstaller.CanInstall([module],
-                       RelationshipResolverOptions.DependsOnlyOpts(instance.StabilityToleranceConfig),
-                       registry, instance.game, instance.VersionCriteria());
-        })
-        .Select(module => module.version.ToString());
+                return module.IsCompatible(instance.VersionCriteria())
+                       && module.release_status <= stabilityTolerance
+                       && ModuleInstaller.CanInstall([module],
+                           RelationshipResolverOptions.DependsOnlyOpts(instance.StabilityToleranceConfig),
+                           registry, instance.game, instance.VersionCriteria());
+            })
+            .Select(module => module.version.ToString());
 
         await WriteMessageAsync(new ActionReply
         {

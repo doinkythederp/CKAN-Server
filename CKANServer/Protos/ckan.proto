@@ -366,6 +366,8 @@ message RegistryAvailableModulesRequest {
 // Modules without any releases are filtered out.
 message RegistryAvailableModulesReply {
     repeated Module modules = 1;
+    // The number of modules that haven't been sent yet and are waiting to be streamed.
+    uint32 remaining = 2;
 }
 
 // Fetch the install & compatability information for all available modules.
