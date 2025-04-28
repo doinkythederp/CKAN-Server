@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using CKAN;
+using CKAN.Extensions;
 using CKAN.Versioning;
 using CKANServer.Utils;
 using Google.Protobuf.WellKnownTypes;
@@ -15,6 +16,26 @@ public partial class CkanAction
             Result = result,
         };
         if (errorDetails != null) reply.ErrorDetails = errorDetails;
+
+        await WriteMessageAsync(new ActionReply
+        {
+            RegistryOperationReply = reply,
+        });
+    }
+
+    private async Task WriteError(TooManyModsProvideKraken ex)
+    {
+        var reply = new RegistryOperationReply
+        {
+            Result = RegistryOperationResult.RorTooManyModsProvide,
+            TooManyModsProvideError = new TooManyModsProvideError
+            {
+                RequestedVirtualModule = ex.requested,
+                RequestingModule = ex.requester.ToRef(),
+                Candidates = { ex.modules.Select(m => m.ToRef()) },
+            },
+        };
+        if (ex.choice_help_text != null) reply.ErrorDetails = ex.choice_help_text;
 
         await WriteMessageAsync(new ActionReply
         {
@@ -297,5 +318,74 @@ public partial class CkanAction
                 },
             },
         });
+    }
+
+    public async Task OptionalDependencies(RegistryOptionalDependenciesRequest request)
+    {
+        logger.LogInformation(
+            "Loading optional dependencies for {Count} modules",
+            request.Modules.Count);
+
+        var instance = await InstanceFromName(request.InstanceName);
+        if (instance == null) return;
+
+        var registry = RegistryManagerFor(instance).registry;
+
+        ICollection<CkanModule> modules;
+        try
+        {
+            modules = request.Modules
+                .Select(reference => registry.GetModuleByVersion(reference.Id, reference.Version))
+                .Cast<CkanModule>()
+                .ToArray();
+        }
+        catch (InvalidCastException)
+        {
+            await WriteRegistryOpReply(RegistryOperationResult.RorModuleNotFound);
+            return;
+        }
+
+        try
+        {
+            ModuleInstaller.FindRecommendations(instance, modules, new List<CkanModule>(modules), registry,
+                out var recommendations,
+                out var suggestions,
+                out var supporters);
+
+            var reply = new RegistryOptionalDependenciesReply
+            {
+                Recommended = { recommendations.Select(pair => MakeDependency(pair.Key, pair.Value.Item2)) },
+                Suggested = { suggestions.Select(pair => MakeDependency(pair.Key, pair.Value)) },
+                Supporters = { supporters.Select(pair => MakeDependency(pair.Key, pair.Value)) },
+                InstallableRecommended =
+                    { recommendations.Where(pair => pair.Value.Item1).Select(pair => pair.Key.identifier) },
+            };
+
+            await WriteMessageAsync(new ActionReply
+            {
+                RegistryOperationReply = new RegistryOperationReply
+                {
+                    Result = RegistryOperationResult.RorSuccess,
+                    OptionalDependencies = reply,
+                },
+            });
+        }
+        catch (TooManyModsProvideKraken ex)
+        {
+            await WriteError(ex);
+        }
+
+        return;
+
+        static RegistryOptionalDependenciesReply.Types.Dependency MakeDependency(
+            CkanModule module,
+            IEnumerable<string> sources)
+        {
+            return new RegistryOptionalDependenciesReply.Types.Dependency
+            {
+                Module = module.ToRef(),
+                Sources = { sources },
+            };
+        }
     }
 }

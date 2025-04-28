@@ -30,8 +30,6 @@ public class CkanManager : ICkanManager
 
     public async Task RunAction(ClientHandle handle, CancellationToken token)
     {
-        var messageChannel = Channel.CreateUnbounded<ActionMessage>();
-        var replyChannel = Channel.CreateUnbounded<ActionReply>();
         var completionSource = new TaskCompletionSource();
         var actionCtx = new CkanAction.ActionContext
         {
@@ -116,6 +114,9 @@ public class CkanManager : ICkanManager
                         break;
                     case ActionMessage.RequestOneofCase.RegistryCompatibleModuleReleases:
                         await action.CompatibleModuleReleases(request.RegistryCompatibleModuleReleases);
+                        break;
+                    case ActionMessage.RequestOneofCase.RegistryOptionalDependenciesRequest:
+                        await action.OptionalDependencies(request.RegistryOptionalDependenciesRequest);
                         break;
 
                     case ActionMessage.RequestOneofCase.ContinueRequest:

@@ -25,6 +25,15 @@ public static class AvailableModuleExtensions
 
 public static class CkanModuleExtension
 {
+    public static ModuleReleaseRef ToRef(this CkanModule module)
+    {
+        return new ModuleReleaseRef
+        {
+            Id = module.identifier,
+            Version = module.version.ToString(),
+        };
+    }
+    
     public static Module.Types.Release ToProto(
         this CkanModule module,
         RepositoryDataManager repositoryDataManager,

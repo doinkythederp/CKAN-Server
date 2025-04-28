@@ -42,6 +42,7 @@ message ActionMessage {
         RegistryAvailableModulesRequest registry_available_modules_request = 11;
         RegistryModuleStatesRequest registry_module_states_request = 12;
         RegistryCompatibleModuleReleasesRequest registry_compatible_module_releases = 13;
+        RegistryOptionalDependenciesRequest registry_optional_dependencies_request = 14;
     }
 }
 
@@ -298,6 +299,11 @@ message Module {
     repeated Release releases = 2;
 }
 
+message ModuleReleaseRef {
+    string id = 1;
+    string version = 2;
+}
+
 // An installed module managed by CKAN 
 message ManagedInstalledModule {
     google.protobuf.Timestamp install_date = 1;
@@ -338,6 +344,8 @@ enum RegistryOperationResult {
     ROR_REGISTRY_IN_USE = 1;
     // There is no module with the given identifier.
     ROR_MODULE_NOT_FOUND = 2;
+    // The user must select a mod that provides a certain virtual module.
+    ROR_TOO_MANY_MODS_PROVIDE = 3;
 }
 
 message RegistryOperationReply {
@@ -349,6 +357,8 @@ message RegistryOperationReply {
         RegistryAvailableModulesReply available_modules = 4;
         RegistryModuleStatesReply module_states = 5;
         RegistryCompatibleModuleReleasesReply compatible_module_releases = 6;
+        RegistryOptionalDependenciesReply optional_dependencies = 7;
+        TooManyModsProvideError too_many_mods_provide_error = 8;
     }
 }
 
@@ -385,6 +395,10 @@ message RegistryModuleStatesReply {
     repeated ModuleState states = 1;
 }
 
+// Fetches the list of installable versions for the given module.
+//
+// Versions that are excluded from this list don't meet the instance's
+// compat options.
 message RegistryCompatibleModuleReleasesRequest {
     string instance_name = 1;
     string module_id = 2;
@@ -393,4 +407,37 @@ message RegistryCompatibleModuleReleasesRequest {
 
 message RegistryCompatibleModuleReleasesReply {
     repeated string compatible_versions = 1;
+}
+
+// Fetches the list of optional dependencies for the given modules.
+//
+// This is useful for suggesting additional mods to the user.
+message RegistryOptionalDependenciesRequest {
+    string instance_name = 1;
+    repeated ModuleReleaseRef modules = 2;
+}
+
+message RegistryOptionalDependenciesReply {
+    message Dependency {
+        ModuleReleaseRef module = 1;
+        repeated string sources = 2;
+    }
+    
+    // Mods that are listed in the `recommends` field of one or more of the given modules.
+    repeated Dependency recommended = 1;
+    // Mods that are listed in the `suggests` field of one or more of the given modules.
+    repeated Dependency suggested = 2;
+    // Mods that list one or more of the given modules in their `supports` field.
+    repeated Dependency supporters = 3;
+    
+    // A set of additional mods based on the `recommended` field
+    // that won't cause conflicts when it is installed.
+    repeated string installable_recommended = 4;
+}
+
+// A registry operation failed because a virtual module had more than one candidate.
+message TooManyModsProvideError {
+    ModuleReleaseRef requesting_module = 1;
+    string requested_virtual_module = 2;
+    repeated ModuleReleaseRef candidates = 3;
 }
