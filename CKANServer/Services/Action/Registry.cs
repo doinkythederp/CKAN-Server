@@ -130,6 +130,7 @@ public partial class CkanAction
         var states = new Dictionary<string, ModuleState>();
 
         // First search for all installed modules. Anything returned by CheckUpgradeable is already installed.
+        // Auto-detected mods aren't handled yet.
 
         var upgradableLists = registry.CheckUpgradeable(instance,
             [..request.HeldModuleIdents]);
@@ -150,41 +151,29 @@ public partial class CkanAction
             }
         }
 
-        // Now add everything else. We filter out mods that are installed to prevent duplicates.
+        // Now add everything else (auto-detected mods and uninstalled mods).
+        // We filter out mods that are both installed & managed to prevent duplicates.
 
         var sorter =
             registry.SetCompatibleVersion(instance.StabilityToleranceConfig, instance.VersionCriteria());
 
-        foreach (var module in sorter.LatestCompatible)
+        var items = sorter.LatestCompatible
+            .Select(m => (true, m))
+            .Concat(sorter.LatestIncompatible
+                .Select(m => (false, m)));
+        
+        foreach (var (compatible, module) in items)
         {
-            if (registry.IsInstalled(module.identifier, with_provides: false))
-            {
-                Debug.Assert(states.ContainsKey(module.identifier));
-                continue;
-            }
-
-            states[module.identifier] = new ModuleState
+            if (states.ContainsKey(module.identifier)) continue;
+            
+            var state = new ModuleState
             {
                 Identifier = module.identifier,
-                IsCompatible = true,
+                IsCompatible = compatible,
                 CurrentRelease = module.version.ToString(),
             };
-        }
-
-        foreach (var module in sorter.LatestIncompatible)
-        {
-            if (registry.IsInstalled(module.identifier, with_provides: false))
-            {
-                Debug.Assert(states.ContainsKey(module.identifier));
-                continue;
-            }
-
-            states[module.identifier] = new ModuleState
-            {
-                Identifier = module.identifier,
-                IsCompatible = false,
-                CurrentRelease = module.version.ToString(),
-            };
+            QueryInstallState(module.identifier, registry, state);
+            states[module.identifier] = state;
         }
 
         await WriteMessageAsync(new ActionReply
