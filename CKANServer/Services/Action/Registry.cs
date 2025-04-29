@@ -198,7 +198,8 @@ public partial class CkanAction
 
         var overrides = options.StabilityToleranceOverrides;
         var overriddenIds = stabilityTolerance.OverriddenModIdentifiers
-            .Union(overrides.Keys);
+            .Union(overrides.Keys)
+            .ToArray();
 
         foreach (var id in overriddenIds)
         {
