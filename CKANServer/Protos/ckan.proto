@@ -281,7 +281,7 @@ message Module {
         repeated Relationship recommends = 16;
         repeated Relationship suggests = 17;
         repeated Relationship supports = 18;
-        optional Relationship replaced_by = 19;
+        optional Relationship.DirectRelationship replaced_by = 19;
         repeated string provides = 20;
         
         repeated string download_uris = 21;

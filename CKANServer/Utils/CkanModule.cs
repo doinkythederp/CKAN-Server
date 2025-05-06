@@ -63,7 +63,7 @@ public static class CkanModuleExtension
         if (module.recommends != null) buf.Recommends.AddRange(module.recommends.Select(r => r.ToProto()));
         if (module.suggests != null) buf.Suggests.AddRange(module.suggests.Select(r => r.ToProto()));
         if (module.supports != null) buf.Supports.AddRange(module.supports.Select(r => r.ToProto()));
-        if (module.replaced_by != null) buf.ReplacedBy = module.replaced_by.ToProto();
+        if (module.replaced_by != null) buf.ReplacedBy = module.replaced_by.ToProtoDirect();
         if (module.provides != null) buf.Provides.AddRange(module.provides);
 
         if (module.download != null) buf.DownloadUris.AddRange(module.download.Select(u => u.ToString()));
@@ -118,6 +118,19 @@ public static class CkanModuleExtension
 
 public static class RelationshipDescriptorExtension
 {
+    public static Module.Types.Relationship.Types.DirectRelationship ToProtoDirect(
+        this ModuleRelationshipDescriptor descriptor)
+    {
+        var direct = new Module.Types.Relationship.Types.DirectRelationship
+        {
+            Name = descriptor.name,
+        };
+        if (descriptor.version != null) direct.Version = descriptor.version.ToString();
+        if (descriptor.min_version != null) direct.MinVersion = descriptor.min_version.ToString();
+        if (descriptor.max_version != null) direct.MaxVersion = descriptor.max_version.ToString();
+        return direct;
+    }
+    
     public static Module.Types.Relationship ToProto(this RelationshipDescriptor relationship)
     {
         var buf = new Module.Types.Relationship
@@ -131,13 +144,7 @@ public static class RelationshipDescriptorExtension
         {
             case ModuleRelationshipDescriptor modRelationship:
             {
-                buf.Direct = new Module.Types.Relationship.Types.DirectRelationship
-                {
-                    Name = modRelationship.name,
-                };
-                if (modRelationship.version != null) buf.Direct.Version = modRelationship.version.ToString();
-                if (modRelationship.min_version != null) buf.Direct.MinVersion = modRelationship.min_version.ToString();
-                if (modRelationship.max_version != null) buf.Direct.MaxVersion = modRelationship.max_version.ToString();
+                buf.Direct = modRelationship.ToProtoDirect();
                 break;
             }
             case AnyOfRelationshipDescriptor anyOfRelationship:
