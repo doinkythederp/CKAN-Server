@@ -248,7 +248,7 @@ public partial class CkanAction
         state.ManagedInstall = new ManagedInstalledModule
         {
             ReleaseVersion = installedModule.Module.version.ToString(),
-            InstallDate = Timestamp.FromDateTime(installedModule.InstallTime),
+            InstallDate = Timestamp.FromDateTime(installedModule.InstallTime.ToUniversalTime()),
             IsAutoInstalled = installedModule.AutoInstalled,
         };
     }
