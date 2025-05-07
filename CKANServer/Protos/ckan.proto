@@ -43,6 +43,7 @@ message ActionMessage {
         RegistryModuleStatesRequest registry_module_states_request = 12;
         RegistryCompatibleModuleReleasesRequest registry_compatible_module_releases = 13;
         RegistryOptionalDependenciesRequest registry_optional_dependencies_request = 14;
+        RegistryPerformInstallRequest registry_perform_install_request = 15;
     }
 }
 
@@ -346,6 +347,21 @@ enum RegistryOperationResult {
     ROR_MODULE_NOT_FOUND = 2;
     // The user must select a mod that provides a certain virtual module.
     ROR_TOO_MANY_MODS_PROVIDE = 3;
+    // Another mod has already installed a file, so it can't be installed again.
+    ROR_FILE_EXISTS = 4;
+    // There was an error upon downloading.
+    ROR_DOWNLOAD_FAILED = 5;
+    // The download failed because an authtoken was missing.
+    ROR_NEEDS_AUTHTOKEN = 6;
+    // The registry is in an inconsistent state.
+    ROR_INCONSISTENT = 7;
+    // A module's metadata was invalid.
+    ROR_BAD_METADATA = 8;
+    // A module cannot be removed because it was not installed.
+    ROR_NOT_INSTALLED = 9;
+    // A manually installed mod is installed somewhere other than
+    // where CKAN would install it, so we can't safely overwrite it.
+    ROR_DLL_LOCATION_MISMATCH = 10;
 }
 
 message RegistryOperationReply {
@@ -359,6 +375,7 @@ message RegistryOperationReply {
         RegistryCompatibleModuleReleasesReply compatible_module_releases = 6;
         RegistryOptionalDependenciesReply optional_dependencies = 7;
         TooManyModsProvideError too_many_mods_provide_error = 8;
+        RegistryPerformInstallResponse perform_install = 9;
     }
 }
 
@@ -441,3 +458,13 @@ message TooManyModsProvideError {
     string requested_virtual_module = 2;
     repeated ModuleReleaseRef candidates = 3;
 }
+
+message RegistryPerformInstallRequest {
+    string instance_name = 4;
+    
+    repeated ModuleReleaseRef mods_to_install = 1;
+    repeated string mods_to_remove = 2;
+    repeated string mods_to_replace = 3;
+}
+
+message RegistryPerformInstallResponse {}

@@ -118,6 +118,9 @@ public class CkanManager : ICkanManager
                     case ActionMessage.RequestOneofCase.RegistryOptionalDependenciesRequest:
                         await action.OptionalDependencies(request.RegistryOptionalDependenciesRequest);
                         break;
+                    case ActionMessage.RequestOneofCase.RegistryPerformInstallRequest:
+                        await action.PerformInstall(request.RegistryPerformInstallRequest);
+                        break;
 
                     case ActionMessage.RequestOneofCase.ContinueRequest:
                         await action.FailAsync("A continuation request cannot be the first message sent");

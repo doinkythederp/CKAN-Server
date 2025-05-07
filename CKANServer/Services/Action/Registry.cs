@@ -161,11 +161,11 @@ public partial class CkanAction
             .Select(m => (true, m))
             .Concat(sorter.LatestIncompatible
                 .Select(m => (false, m)));
-        
+
         foreach (var (compatible, module) in items)
         {
             if (states.ContainsKey(module.identifier)) continue;
-            
+
             var state = new ModuleState
             {
                 Identifier = module.identifier,
@@ -325,11 +325,10 @@ public partial class CkanAction
         try
         {
             modules = request.Modules
-                .Select(reference => registry.GetModuleByVersion(reference.Id, reference.Version))
-                .Cast<CkanModule>()
+                .Select(reference => registry.GetModuleByVersion(reference.Id, reference.Version)!)
                 .ToArray();
         }
-        catch (InvalidCastException)
+        catch (NullReferenceException)
         {
             await WriteRegistryOpReply(RegistryOperationResult.RorModuleNotFound);
             return;
@@ -376,6 +375,164 @@ public partial class CkanAction
                 Module = module.ToRef(),
                 Sources = { sources },
             };
+        }
+    }
+
+    public async Task PerformInstall(RegistryPerformInstallRequest request)
+    {
+        logger.LogInformation("Performing installation");
+
+        var instance = await InstanceFromName(request.InstanceName);
+        if (instance == null) return;
+
+        var registryManager = RegistryManagerFor(instance);
+        var registry = registryManager.registry;
+
+        if (InstanceManager.Cache == null)
+        {
+            throw new NullReferenceException("Cannot perform an install when the InstanceManager cache is not set");
+        }
+
+        var pendingInstallOrUpgrade = request.ModsToInstall
+            .Select(reference =>
+            {
+                var module = registry.GetModuleByVersion(reference.Id, reference.Version);
+                if (module == null)
+                {
+                    throw new ModuleNotFoundKraken(reference.Id, reference.Version);
+                }
+
+                return module;
+            })
+            .ToList();
+
+        var pendingInstall = new List<CkanModule>();
+        var pendingUpgrade = new List<CkanModule>();
+
+        foreach (var ckanModule in pendingInstallOrUpgrade)
+        {
+            if (registry.IsInstalled(ckanModule.identifier, with_provides: false))
+            {
+                pendingInstall.Add(ckanModule);
+            }
+            else
+            {
+                pendingUpgrade.Add(ckanModule);
+            }
+        }
+
+        var versionCriteria = instance.VersionCriteria();
+        var pendingReplacements = request.ModsToReplace
+            .Select(identifier =>
+                registry.GetReplacement(identifier, instance.StabilityToleranceConfig, versionCriteria))
+            .OfType<ModuleReplacement>()
+            .ToList();
+
+        HashSet<string>? possibleConfigOnlyDirs = null;
+        var installer = new ModuleInstaller(instance, InstanceManager.Cache, User);
+        var resolverOpts = new RelationshipResolverOptions(instance.StabilityToleranceConfig)
+        {
+            with_all_suggests = false,
+            with_suggests = false,
+            with_recommends = false,
+            without_toomanyprovides_kraken = false,
+            without_enforce_consistency = false,
+        };
+        var downloader =
+            new NetAsyncModulesDownloader(User, InstanceManager.Cache, cancelToken: Context.CancellationToken);
+
+
+        try
+        {
+            using var transaction = CkanTransaction.CreateTransactionScope();
+
+            if (request.ModsToRemove.Count > 0)
+            {
+                installer.UninstallList(request.ModsToRemove, ref possibleConfigOnlyDirs, registryManager,
+                    ConfirmPrompt: false,
+                    installing: pendingInstall);
+            }
+
+            if (pendingInstall.Count > 0)
+            {
+                installer.InstallList(pendingInstall, resolverOpts, registryManager, ref possibleConfigOnlyDirs,
+                    ConfirmPrompt: false,
+                    downloader: downloader);
+            }
+
+            if (pendingUpgrade.Count > 0)
+            {
+                installer.Upgrade(pendingUpgrade, downloader, ref possibleConfigOnlyDirs, registryManager,
+                    ConfirmPrompt: false);
+            }
+
+            if (request.ModsToReplace.Count > 0)
+            {
+                installer.Replace(pendingReplacements, resolverOpts, downloader, ref possibleConfigOnlyDirs,
+                    registryManager);
+            }
+
+            if (possibleConfigOnlyDirs != null)
+            {
+                logger.LogWarning("Possible config only dirs: {Dirs}", possibleConfigOnlyDirs);
+                // TODO: do something about these
+            }
+
+            transaction.Complete();
+
+            await WriteMessageAsync(new ActionReply
+            {
+                RegistryOperationReply = new RegistryOperationReply
+                {
+                    Result = RegistryOperationResult.RorSuccess,
+                    PerformInstall = new RegistryPerformInstallResponse(),
+                },
+            });
+        }
+        catch (CancelledActionKraken)
+        {
+            return;
+        }
+        catch (FileExistsKraken ex)
+        {
+            await WriteRegistryOpReply(RegistryOperationResult.RorFileExists, ex.filename);
+        }
+        catch (DownloadErrorsKraken ex)
+        {
+            await WriteRegistryOpReply(RegistryOperationResult.RorDownloadFailed, ex.ToString());
+        }
+        catch (ModuleDownloadErrorsKraken ex)
+        {
+            await WriteRegistryOpReply(RegistryOperationResult.RorDownloadFailed, ex.ToString());
+        }
+        catch (RequestThrottledKraken ex)
+        {
+            await WriteRegistryOpReply(RegistryOperationResult.RorNeedsAuthtoken, ex.Message);
+        }
+        catch (InconsistentKraken ex)
+        {
+            await WriteRegistryOpReply(RegistryOperationResult.RorInconsistent, ex.Message);
+        }
+        catch (TooManyModsProvideKraken ex)
+        {
+            // TODO: implement custom handler
+            throw;
+        }
+        catch (BadMetadataKraken ex)
+        {
+            await WriteRegistryOpReply(RegistryOperationResult.RorBadMetadata, ex.Message);
+        }
+        catch (ModuleNotFoundKraken ex)
+        {
+            await WriteRegistryOpReply(RegistryOperationResult.RorModuleNotFound, ex.Message);
+        }
+        catch (ModNotInstalledKraken ex)
+        {
+            await WriteRegistryOpReply(RegistryOperationResult.RorNotInstalled, ex.mod);
+        }
+        catch (DllLocationMismatchKraken ex)
+        {
+            await WriteRegistryOpReply(RegistryOperationResult.RorDllLocationMismatch, ex.Message);
         }
     }
 }
