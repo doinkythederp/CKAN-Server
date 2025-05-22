@@ -535,4 +535,33 @@ public partial class CkanAction
             await WriteRegistryOpReply(RegistryOperationResult.RorDllLocationMismatch, ex.Message);
         }
     }
+
+    public async Task RefreshRegistry(RegistryUpdateRequest request)
+    {
+        var instance = await InstanceFromName(request.InstanceName);
+        if (instance == null) return;
+
+        var downloader = new NetAsyncDownloader(User, () => null, cancelToken: Context.CancellationToken);
+
+        try
+        {
+            var mgr = RegistryManagerFor(instance);
+            RepoManager.Update(mgr.registry.Repositories.Values.ToArray(), instance.game, request.Force, downloader,
+                User);
+        }
+        catch (DownloadErrorsKraken ex)
+        {
+            await WriteRegistryOpReply(RegistryOperationResult.RorDownloadFailed, ex.Message);
+            return;
+        }
+
+        await WriteMessageAsync(new ActionReply
+        {
+            RegistryOperationReply = new RegistryOperationReply
+            {
+                Result = RegistryOperationResult.RorSuccess,
+                Update = new RegistryUpdateResponse(),
+            },
+        });
+    }
 }

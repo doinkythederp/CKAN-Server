@@ -44,6 +44,7 @@ message ActionMessage {
         RegistryCompatibleModuleReleasesRequest registry_compatible_module_releases = 13;
         RegistryOptionalDependenciesRequest registry_optional_dependencies_request = 14;
         RegistryPerformInstallRequest registry_perform_install_request = 15;
+        RegistryUpdateRequest registry_update_request = 16;
     }
 }
 
@@ -376,6 +377,7 @@ message RegistryOperationReply {
         RegistryOptionalDependenciesReply optional_dependencies = 7;
         TooManyModsProvideError too_many_mods_provide_error = 8;
         RegistryPerformInstallResponse perform_install = 9;
+        RegistryUpdateResponse update = 10;
     }
 }
 
@@ -468,3 +470,10 @@ message RegistryPerformInstallRequest {
 }
 
 message RegistryPerformInstallResponse {}
+
+message RegistryUpdateRequest {
+    string instance_name = 1;
+    bool force = 2;
+}
+
+message RegistryUpdateResponse {}
